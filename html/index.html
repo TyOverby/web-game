@@ -12,12 +12,11 @@
 		<script src="../js/game/game.js"></script>
 	</head>
 
-	<body style="background-color:black;" onkeydown="inputHandler(event);">
-		<canvas id="score" width="500" height="100"></canvas>  
-			<br />
-		<canvas id="canvas" width="500" height="500" ></canvas>  
-	</body>
-	<br />
-	<button onclick="start()">Start</button>
-	<button onclick="stop()">Stop</button>
+	<body style="background-color:black;" onload="initializeEngine()">
+		<canvas id="canvas" width="500" height="500" ></canvas>
+
+        <br />
+        <button onclick="game.run()">Start</button>
+        <button onclick="game.stop()">Stop</button>
+    </body>
 </html>
