@@ -107,6 +107,7 @@ GameMath = {
 
 			this.x /= magnitude;
 			this.y /= magnitude;
+			return this;
 		}
 		
 		this.equals = function(other){
@@ -120,8 +121,13 @@ GameMath = {
 		}
 	},
 	Random:{
-		randDouble: function(){
-			return Math.random();
+		randDouble: function(limit1,limit2){
+			if(limit2 != undefined){
+				return GameMath.Random.randDouble(limit2-limit1)+limit1;
+			}
+			else{
+				return Math.random()*limit1;
+			}
 		},
 		randInt:function(limit1,limit2){
 			if(limit2!=undefined){
@@ -139,6 +145,33 @@ GameMath = {
 /*
  *	../js/engine/draw.js
  */
+CanvasRenderingContext2D.prototype.drawLine = function(p1,p2){
+    this.beginPath();
+    this.moveTo(p1.x,p1.y);
+    this.lineTo(p2.x,p2.y);
+    this.closePath();
+    this.stroke();
+}
+
+
+CanvasRenderingContext2D.prototype.drawVector = function(position, velocity){
+    if(velocity == null || velocity ==undefined){
+        velocity = position;
+        position = new Vector2f(0,0);
+    }
+
+    this.drawLine(position,velocity.plus(position));
+}
+
+CanvasRenderingContext2D.prototype.fillCircle = function(position, radius){
+    this.beginPath();
+    this.arc(position.x,position.y,radius,0,Math.PI*2,true);
+    this.fill();
+    this.closePath();
+}
+
+/*
+
 function Pane(canvasId){
 	var canvas = document.getElementById(canvasId);
 		if(canvas === undefined){
@@ -147,11 +180,21 @@ function Pane(canvasId){
 	var ctx = canvas.getContext("2d");
 
 	this.getWidth = function(){
-		return canvas.width;
+		return ctx.width;
 	}
 
 	this.getHeight = function(){
-		return canvas.height;
+		return ctx.height;
+	}
+
+	this.setSize = function(width,height){
+		ctx.width = width;
+		ctx.height = height;
+
+		canvas.width = width;
+		canvas.height = height;
+
+		console.log(width+" "+height)
 	}
 
 	this.getContext = function(type){
@@ -163,6 +206,9 @@ function Pane(canvasId){
 		}
 	}
 
+	this.clearRect = function(x,y,width,height){
+		ctx.clearRect(x,y,width,height);
+	}
 
 	this.resetColor = function(){
 		ctx.fillStyle = "cyan";
@@ -237,34 +283,35 @@ function Pane(canvasId){
 		this.resetColor();
 	}
 }
+*/
 
 </script>
 <script>
 /*
  *	../js/engine/engine.js
  */
-function Engine(game,fps){
+function Engine(game,paneID){
 	var hasRan = false;
 	var game = game;
-	var targetFps = 1000;
+	var targetFps = 60;
 	var prevTime = new Date();
-	
-	if(fps!=undefined&&fps!=null){
-		targetFps = fps;
-	}
 
-	var intervalId;
+    var intervalId = [];
+    pane = document.getElementById(paneID).getContext("2d");
 
 	this.run = function(){
-		//only do the startup if the game has ran before
 		if(!hasRan){
 			game.startup();
 		}
-		intervalId = setInterval(this.update,1);
-		hasRan = true;
+        hasRan = true;
+		intervalId.push(setInterval(this.update,1));
 	}
+
 	this.stop = function(message){
-		clearInterval(intervalId);
+        for(var i=0;i<intervalId.length;i++){
+		    clearInterval(intervalId[i]);
+        }
+
 		if(message!=null){
 			console.error(message);
 		}
@@ -272,13 +319,11 @@ function Engine(game,fps){
 
 	this.update = function(){
 		var curTime = new Date();
-
-
 		var diffTime=curTime.valueOf()-prevTime.valueOf();
 		if(diffTime>1000/targetFps){
-			game.update();
+			game.update(diffTime);
 			prevTime = curTime;
-			game.render();
+			game.render(pane);
 		}
 	}
 }
@@ -289,185 +334,55 @@ function Engine(game,fps){
 /*
  *	../js/game/game.js
  */
-function basicGame(canvasID){
-	var scorePane = new Pane("score");
-	pane = new Pane(canvasID);
-	var gridCount = 50;
-	var sizeFactor = pane.getWidth()/gridCount;
-	
-	var gridColor = "rgb(20,20,20)"
-	
-	var foods = [];
-	var foodColor = "white";
-
-	var points = 0;
-
-	var cent = [];
-	direction = new GameMath.Vector2f(0,-1);
+function BasicGame(){
+    var p = new GameMath.Vector2f(5,5);
+    var p_radius = 10;
+    var v = new GameMath.Vector2f(5,10);
+    var a = new GameMath.Vector2f(0,1);
 
 	this.startup = function(){
-		for(var i = 0;i<3;i++){
-			foods[i] =(new GameMath.Vector2f(GameMath.Random.randInt(0,gridCount-1),GameMath.Random.randInt(0,gridCount-1)));
-		}
-		cent[0] = new GameMath.Vector2f(gridCount-3,gridCount-3);
-		cent[1] = new GameMath.Vector2f(gridCount-2,gridCount-2);
+        console.log("starting up");
 	}
 
-	//////////////////////
-	/////// UPDATE ///////
-	//////////////////////
+	this.update = function(deltaT){
 
-	this.update = function(){
-		var nCent = [];
-		nCent[0] = cent[0];
-		for(var i=1;i<cent.length;i++){
-			nCent[i]=cent[i-1].clone();
-		}
-		cent = nCent;		
+        p.plusEquals(v);
+        v.plusEquals(a);
+        if(p.x<=0||p.x+2*p_radius>=pane.canvas.width){
+            v.x=-v.x;
+        }
+        console.log(pane.canvas.height);
+        if(p.y<=0||p.y+2*p_radius>=pane.canvas.height){
+            v.y=-v.y;
+            v.y = v.y/2;
 
-		cent[0].plusEquals(direction);	
-		cent[0].x=(cent[0].x +50 )% gridCount;
-		cent[0].y=(cent[0].y +50 )% gridCount;		
-
-		var lower;
-		// Check for food collision
-		for(var i=0; i<foods.length;i++){
-			if(cent[0].equals(foods[i]))
-			{
-				//Add the foods
-				foods[i] = new GameMath.Vector2f(GameMath.Random.randInt(5,gridCount-5),GameMath.Random.randInt(5,gridCount-5)); 
-		
-				// Add the new pieces to the snake
-				for(var i=0;i<5;i++){	
-					cent[cent.length] = cent[cent.length-1].clone();
-				}
-				
-				//increment the score
-				score ++;
-			}
-		}
-
-		// Check for snake collision
-		for(var i=1; i<cent.length;i++){
-			if(cent[0].equals(cent[i])){
-				stop();
-			}
-		}
+            v.x = v.x * 0.9;
+        }
 	}
 
 
 
-	this.render = function(){
-		pane.drawRectFill(0,0,pane.getWidth(),pane.getHeight(),"black");
-
-		// Draw the food
-		for(var i=0;i<foods.length;i++){
-			pane.drawCircleFill(sizeFactor*foods[i].x+sizeFactor/2,sizeFactor*foods[i].y+sizeFactor/2,sizeFactor/2,foodColor);
-		}
-		//Draw the grid
-		for(var i=0;i<gridCount;i++){
-			for(var k=0;k<gridCount;k++){
-				pane.drawLine(i*sizeFactor,k*sizeFactor,i*sizeFactor,k+gridCount*sizeFactor,gridColor);
-				pane.drawLine(i*sizeFactor,k*sizeFactor,i*sizeFactor+gridCount*sizeFactor,k*sizeFactor,gridColor);
-			}
-		}
-
-		//Draw the centepede
-		for(var i=0; i<cent.length;i++){
-			//do color setting
-			centColor = getColor(i,cent);
-
-			// The head
-			if(i==0){
-				//Circle Part
-				pane.drawCircleFill(sizeFactor*cent[i].x+sizeFactor/2,sizeFactor*cent[i].y+sizeFactor/2,sizeFactor/2,centColor);
-				//round it off
-				if(cent.length>1){
-					if(cent[0].x>cent[1].x){
-						pane.drawRectFill(sizeFactor*cent[0].x,sizeFactor*cent[i].y,sizeFactor/2,sizeFactor,centColor);
-					}else if(cent[0].x<cent[1].x){
-						pane.drawRectFill(sizeFactor*cent[0].x+sizeFactor/2,sizeFactor*cent[0].y,sizeFactor/2,sizeFactor,centColor);
-					}
-
-					if(cent[0].y>cent[1].y){
-						pane.drawRectFill(sizeFactor*cent[0].x,sizeFactor*cent[i].y,sizeFactor,sizeFactor/2,centColor);	
-					}
-					else if(cent[0].y<cent[1].y){
-						pane.drawRectFill(sizeFactor*cent[0].x,sizeFactor*cent[0].y+sizeFactor/2,sizeFactor,sizeFactor/2,centColor);
-					}
-						
-				}
-			}else if(i==cent.length-1){ //The tail
-				pane.drawRectFill(sizeFactor*cent[i].x,sizeFactor*cent[i].y,sizeFactor,sizeFactor,centColor);
-			}else{
-				var foodHere = false;
-				for(var k=0;k<foods.length;k++){
-					if(cent[i].equals(foods[k])){
-						foodHere = true;
-						break;
-					}
-				}
-				pane.drawRectFill(sizeFactor*cent[i].x,sizeFactor*cent[i].y,sizeFactor,sizeFactor,centColor);
-
-				
-				if(foodHere){
-					centColor="white";
-					pane.drawCircleFill(sizeFactor*cent[i].x+sizeFactor/2,sizeFactor*cent[i].y+sizeFactor/2,sizeFactor/2,centColor);
-				}
-			}
-		}
-	}
-
-	this.isRunning = function(){
-		return true;
+	this.render = function(pane){
+        pane.fillStyle="red";
+        pane.fillCircle(p,p_radius);
 	}
 }
 
-inputHandler = function(e){
-	var key = event.keyCode;
-	var newDirection;
-	if(key==87||key==38){        //Up
-		newDirection=new GameMath.Vector2f(0,-1);
-	} else if(key==83||key==40){ // Down
-		newDirection=new GameMath.Vector2f(0,1);
-	} else if(key==68||key==39){ // Right
-		newDirection = new GameMath.Vector2f(1,0);
-	} else if(key==65||key==37){ // Left
-		newDirection = new GameMath.Vector2f(-1,0);
-	}
 
-	if(direction.y != newDirection.y){
-		if(direction.x != newDirection.x){
-			direction = newDirection.clone();
-		}
-	}
-	
-};
-
-
-function getColor(index,array){
-	var hue = index/array.length*360;
-	return "hsl("+hue+",100%,50%)";
+function initializeEngine(){
+    game = new Engine(new BasicGame(),"canvas");
+    console.log("initialized!");
 }
 
-function start(){
-	myGame = new basicGame("canvas");
-	game = new Engine(myGame,10);
-	game.run();
-}
-function stop(){
-	game.stop();
-}
 
 </script>
 	</head>
 
-	<body style="background-color:black;" onkeydown="inputHandler(event);">
-		<canvas id="score" width="500" height="100"></canvas>  
-			<br />
-		<canvas id="canvas" width="500" height="500" ></canvas>  
-	</body>
-	<br />
-	<button onclick="start()">Start</button>
-	<button onclick="stop()">Stop</button>
+	<body style="background-color:black;" onload="initializeEngine()">
+		<canvas id="canvas" width="500" height="500" ></canvas>
+
+        <br />
+        <button onclick="game.run()">Start</button>
+        <button onclick="game.stop()">Stop</button>
+    </body>
 </html>
